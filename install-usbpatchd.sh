@@ -39,13 +39,13 @@ function cleanup {
 }
 
 # $1 : SSH command
-SshCmd() {
+function SshCmd() {
     sshpass -p 'alpine' ssh -o StrictHostKeyChecking=no -p $SSH_PORT root@localhost $1
 }
 
 # $1 : File/directory to send
 # $2 : Remote path
-ScpUpload() {
+function ScpUpload() {
     sshpass -p 'alpine' scp -rP $SSH_PORT -o StrictHostKeyChecking=no $1 root@localhost:$2
 }
 
@@ -74,16 +74,28 @@ echo 'volume in /mnt1.'
 echo "If you are using u/meowcat454\'s ramdisk, you should type \`bash /usr/bin/mount_root\`."
 echo "After that, run iproxy with \`iproxy 4242 22\`. You may need to replace 22 with 44."
 
+echo 'Press any key to continue...'; read -k1 -s
+
 ScpUpload 'root/usr/bin/snappy' '/mnt1/usr/bin/'
 
-# TODO
-# SYSTEM_SNAPSHOT=$(SshCmd '/mnt1/usr/bin/snappy -s' | cut -d ' ' -f 3 | tr -d '\n')
-# 
-# # Only rename System snapshot if it hasn't been renamed yet (preserves modified root)
-# if [[ "$SYSTEM_SNAPSHOT" == "com.apple.os.update"* ]]
-# then
-#     SshCmd '/mnt1/usr/bin/snappy -f /mnt1 -r "$SYSTEM_SNAPSHOT" -t orig-fs > /dev/null'
-# fi
+SYSTEM_SNAPSHOT=$(SshCmd '/mnt1/usr/bin/snappy -s' | cut -d ' ' -f 3 | tr -d '\n')
+
+if [[ "$SYSTEM_SNAPSHOT" == "com.apple.os.update"* ]]
+then
+    SshCmd '/mnt1/usr/bin/snappy -f /mnt1 -r "$SYSTEM_SNAPSHOT" -t orig-fs > /dev/null'
+else
+    SYSTEM_SNAPSHOT=$(SshCmd '/mnt1/usr/bin/snappy -f /mnt1 -l' | sed -n 2p | tr -d '\n')
+
+    # If initial attempt failed, try this instead (should I just do this?)
+    if [[ "$SYSTEM_SNAPSHOT" == "com.apple.os.update"* ]]
+    then
+        SshCmd '/mnt1/usr/bin/snappy -f /mnt1 -r "$SYSTEM_SNAPSHOT" -t orig-fs > /dev/null'
+    else
+        echo 'Unable to rename rootfs snapshot! Please file a bug report.'
+        exit -1
+    fi
+fi
+
 
 cd root
 tar czf ../usbpatchd-install.tar.gz ./
@@ -94,12 +106,13 @@ ScpUpload 'usbpatchd-install.tar.gz' '/mnt1/'
 # TODO: Must have tar (and gzip?) installed on ramdisk
 SshCmd 'cd /mnt1 && tar -xvzf usbpatchd-install.tar.gz && rm usbpatchd-install.tar.gz'
 
-echo 'Finished installing usbpatchd to System volume. One last step before rebooting'
-echo 'is to rename System snapshot to orig-fs. To do this, run'
-echo "\`/mnt1/usr/bin/snappy -f /mnt1 -l\`, then copy and paste the long string"
-echo '(com.apple.os.update...) and run'
-echo "\`/mnt1/usr/bin/snappy -f /mnt1 -r com.apple.os.update... -t orig-fs\`"
-echo ''
+# echo 'Finished installing usbpatchd to System volume. One last step before rebooting'
+# echo 'is to rename System snapshot to orig-fs. To do this, run'
+# echo "\`/mnt1/usr/bin/snappy -f /mnt1 -l\`, then copy and paste the long string"
+# echo '(com.apple.os.update...) and run'
+# echo "\`/mnt1/usr/bin/snappy -f /mnt1 -r com.apple.os.update... -t orig-fs\`"
+# echo ''
+echo 'Finished installing usbpatchd.'
 echo 'Now you can reboot and run checkra1n (either from CLI or from Recovery mode)'
 echo 'to finish patching USB restriction. After that, SSH should now be accessible'
-echo 'from the lock screen when using iproxy (`iproxy 2222 44`)!'
+echo 'from the lock screen when using iproxy or tcprelay (`iproxy 2222 44`)!'
