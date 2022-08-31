@@ -74,7 +74,8 @@ echo 'volume in /mnt1.'
 echo "If you are using u/meowcat454\'s ramdisk, you should type \`bash /usr/bin/mount_root\`."
 echo "After that, run iproxy with \`iproxy 4242 22\`. You may need to replace 22 with 44."
 
-echo 'Press any key to continue...'; read -k1 -s
+printf 'Press Enter to continue...'
+head -n 1 > /dev/null
 
 ScpUpload 'root/usr/bin/snappy' '/mnt1/usr/bin/'
 
